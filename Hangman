@@ -1,0 +1,200 @@
+import tkinter as tk
+import random
+
+# The pictures that are shown throughout the game
+HANGMANPICTURES = [
+    """
+     +----+
+     |    |
+     |    
+     |    
+     |    
+     |    
+    ====""",
+    """
+     +----+
+     |    |
+     |    O
+     |    
+     |    
+     |    
+    ====""",
+    """
+     +----+
+     |    |
+     |    O
+     |    |
+     |    
+     |    
+    ====""",
+    """
+     +----+
+     |    |
+     |    O
+     |   /|
+     |    
+     |    
+    ====""",
+    """
+     +----+
+     |    |
+     |    O
+     |   /|\\
+     |    
+     |    
+    ====""",
+    """
+     +----+
+     |    |
+     |    O
+     |   /|\\
+     |   / 
+     |    
+    ====""",
+    """
+     +----+
+     |    |
+     |    O
+     |   /|\\
+     |   / \\
+     |    
+    ===="""]
+
+# This is a duh
+def load_words(filename):
+    with open(filename, "r") as f:
+        return [line.strip() for line in f if line.strip()]
+
+# The list of words
+word_list = load_words(r"C:\Users\uaa_coenglab209login\Downloads\text-based-coding-main\text-based-coding-main\words.txt")
+
+# Creates the Gui using Tkinter
+class HangmanGUI:
+    def __init__(self, master):
+        self.master = master
+        master.title("Hangman Game")
+
+        # Selects a random word based off of the word list
+        self.chosen_word = list(random.choice(word_list))
+        self.blank_list = ["_"] * len(self.chosen_word)
+        self.update_display = 0
+        self.guessed_letters = set()  # <-- Letter bank
+
+        # MAKE SURE TO REMOVE THIS BEFORE PRESENTATION
+        self.answer_label = tk.Label(master, text="Word: " + "".join(self.chosen_word), font=("Arial", 10), fg="gray")
+        self.answer_label.place(x=0, y=0)
+
+        # Timer 
+        self.seconds = 0
+        self.timer_running = True 
+        self.timer_label = tk.Label(master, text="Time: 0s", font=("Arial", 10))
+        self.timer_label.place(relx=1.0, y=0, anchor="ne")
+        self.update_timer()
+        
+        # The Font and size of the text
+        self.label = tk.Label(master, text=" ".join(self.blank_list), font=("Arial", 24))
+        self.label.pack()
+
+        # The Box to put in your answers
+        self.entry = tk.Entry(master)
+        self.entry.pack()
+
+        # The button used to make a guess
+        self.guess_button = tk.Button(master, text="Guess", command=self.make_guess)
+        self.guess_button.pack()
+
+        # How the hangman picture is shown
+        self.hangman_label = tk.Label(master, text=HANGMANPICTURES[self.update_display], font=("Courier", 16), justify="left")
+        self.hangman_label.pack()
+
+        # How the guessed letters are shown
+        self.letter_bank_label = tk.Label(master, text="Guessed Letters: ")
+        self.letter_bank_label.pack()
+
+        # The message shown to the user
+        self.message = tk.Label(master, text="")
+        self.message.pack()
+
+        # The reset button 
+        self.reset_button = tk.Button(master, text="Play Again", command=self.reset_game)
+        self.reset_button.pack()
+
+    # code to make the player not guess the same thing twice
+    def make_guess(self):
+        guess = self.entry.get().lower()
+        self.entry.delete(0, tk.END)
+        if not guess:
+            self.message.config(text="You are supposed to enter a letter or the full word!")
+            return
+
+        # Only allow alphabetic guesses
+        if not guess.isalpha():
+            self.message.config(text="Only letters are allowed! No numbers or special characters.")
+            return
+
+        # Ability to guess the full word
+        if guess == "".join(self.chosen_word):
+            self.blank_list = self.chosen_word[:]
+            self.label.config(text=" ".join(self.blank_list))
+            self.message.config(text="WINNER WINNER CHICKEN DINNER!")
+            self.timer_running = False
+            return
+
+        # Only allow single letter guesses for the letter bank
+        if len(guess) == 1:
+            if guess in self.guessed_letters:
+                self.message.config(text=f"You already guessed '{guess}' dum dum")
+                return
+            self.guessed_letters.add(guess)
+            self.letter_bank_label.config(
+                text="You Have Guessed...: " + " ".join(sorted(self.guessed_letters))
+            )
+
+        # Checks the asnwer to see if its right or wrong
+        correct = False
+        for i, letter in enumerate(self.chosen_word):
+            if guess == letter:
+                self.blank_list[i] = guess
+                correct = True
+        if not correct and len(guess) == 1:
+            if self.update_display < len(HANGMANPICTURES) - 1:
+                self.update_display += 1
+        self.label.config(text=" ".join(self.blank_list))
+        self.hangman_label.config(text=HANGMANPICTURES[self.update_display])
+        if self.blank_list == self.chosen_word:
+            self.message.config(text="WINNER WINNER CHICKEN DINNER!")
+            self.timer_running = False 
+        elif self.update_display == len(HANGMANPICTURES) - 1:
+            self.message.config(text="YOU LOSE :(")
+            self.timer_running = False  
+        
+       
+    
+    # Code to reset the game
+    def reset_game(self):
+        self.chosen_word = list(random.choice(word_list))
+        self.blank_list = ["_"] * len(self.chosen_word)
+        self.update_display = 0
+        self.guessed_letters = set()
+        self.seconds = 0
+        self.timer_running = True
+        self.label.config(text=" ".join(self.blank_list))
+        self.hangman_label.config(text=HANGMANPICTURES[self.update_display])
+        self.letter_bank_label.config(text="Guessed Letters: ")
+        self.message.config(text="")
+        self.entry.delete(0, tk.END)
+
+    # Code to update timer
+    def update_timer(self):
+        if self.timer_running:
+            self.timer_label.config(text=f"Time: {self.seconds}s")
+            self.seconds += 1
+        self.master.after(1000, self.update_timer)
+    
+
+
+# Function to run the GUI
+if __name__ == "__main__":
+    root = tk.Tk()
+    game = HangmanGUI(root)
+    root.mainloop()
