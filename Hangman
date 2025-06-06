@@ -3,12 +3,11 @@ from tkinter import simpledialog, messagebox
 import random
 import os
 
-# Leaderboard files
+# Constants for leaderboard files
 LEADERBOARD_FILE = "leaderboard.txt"
 LEADERBOARD_FILE_BLITZ = "leaderboard_blitz.txt"
 LEADERBOARD_FILE_ONELIFE = "leaderboard_onelife.txt"
 
-# The pictures that are shown throughout the game
 HANGMANPICTURES = [
     """
      +----+
@@ -72,7 +71,15 @@ def load_words(filename):
     with open(filename, "r") as f:
         return [line.strip() for line in f if line.strip()]
 
-word_list = load_words(r"C:\Users\uaa_coenglab209login\Downloads\text-based-coding-main\text-based-coding-main\words.txt")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+medical_words_path = os.path.join(BASE_DIR, "medical_words.txt")
+
+def load_words(filename):
+    with open(filename, "r") as f:
+        return [line.strip() for line in f if line.strip()]
+
+# this is a duh
+normal_word_list = load_words(r"C:\Users\uaa_coenglab209login\Downloads\text-based-coding-main\text-based-coding-main\words.txt")
 
 # -------------------- Start Screen --------------------
 class StartScreen:
@@ -141,19 +148,6 @@ class StartScreen:
         )
         self.blitz_button.pack(side="left", padx=10)
 
-        self.challenge_button = tk.Button(
-            self.master,
-            text="I Want A Little Challenge",
-            font=("Arial", 8, "italic"),
-            bg="#fffde7",
-            fg="#333",
-            activebackground="#ffe082",
-            activeforeground="#333",
-            command=lambda: self.start_game("challenge")
-        )
-        self.challenge_button.place(relx=1.0, rely=1.0, anchor="se", x=-10, y=-10)
-
-        # Leaderboards section 
         leaderboard_title = tk.Label(
             self.frame,
             text="Leaderboards",
@@ -165,7 +159,6 @@ class StartScreen:
         self.leaderboard_frame = tk.Frame(self.frame, bg="#f0f0f0")
         self.leaderboard_frame.pack(pady=(0, 30), fill="x")
 
-        # Blitz Leaderboard
         blitz_frame = tk.Frame(self.leaderboard_frame, bd=2, relief="groove", padx=10, pady=8, bg="#e3f2fd")
         blitz_frame.pack(side="left", padx=2, expand=True, fill="y")
         blitz_title = tk.Label(
@@ -185,7 +178,6 @@ class StartScreen:
         )
         self.blitz_label.pack()
 
-        # Main Leaderboard 
         main_frame = tk.Frame(self.leaderboard_frame, bd=2, relief="groove", padx=10, pady=8, bg="#fffde7")
         main_frame.pack(side="left", padx=2, expand=True, fill="y")
         main_title = tk.Label(
@@ -205,7 +197,6 @@ class StartScreen:
         )
         self.main_label.pack()
 
-        # 1 Life Leaderboard 
         onelife_frame = tk.Frame(self.leaderboard_frame, bd=2, relief="groove", padx=10, pady=8, bg="#ffebee")
         onelife_frame.pack(side="left", padx=2, expand=True, fill="y")
         onelife_title = tk.Label(
@@ -238,8 +229,22 @@ class StartScreen:
             width=10,
             command=self.master.destroy
         )
-        self.quit_button.pack(pady=(0, 10))
+        self.quit_button.pack(pady=(0,10))
+        
+        self.challenge_button = tk.Button(
+            self.master,
+            text="I Want A Little Challenge",
+            font=("Arial", 8, "italic"),
+            bg="#fffde7",
+            fg="#333",
+            activebackground="#ffe082",
+            activeforeground="#333",
+            command=lambda: ChallengeModeScreen(self.master, self.start_callback)
+        )       
+        self.challenge_button.place(relx=1.0, rely=1.0, anchor="se", x=-10, y=-10)
 
+
+    # Function to get the leaderboard text from a file
     def get_leaderboard_text(self, filename):
         if not os.path.exists(filename):
             return "No scores yet!"
@@ -255,6 +260,7 @@ class StartScreen:
                 lines.append(f"{place:>4}: {name:<12} {score:>5}")
             return "\n".join(lines)
 
+    # Function to start the game based on the selected mode
     def start_game(self, mode):
         self.frame.destroy()
         self.challenge_button.destroy()
@@ -262,12 +268,16 @@ class StartScreen:
             BlitzMode(self.master, lambda: StartScreen(self.master, self.start_callback))
         elif mode == "one_life":
             OneLifeMode(self.master, lambda: StartScreen(self.master, self.start_callback))
+        elif mode == "challenge":
+            ChallengeModeScreen(self.master, self.start_callback)
+        elif mode == "medical":
+            HangmanGUI(self.master, word_list=load_words(medical_words_path))
         else:
             HangmanGUI(self.master)
 
 # -------------------- Normal Mode --------------------
 class HangmanGUI:
-    def __init__(self, master, player_name=None):
+    def __init__(self, master, player_name=None, points=0, word_list=None):
         self.master = master
         if player_name is None:
             self.player_name = simpledialog.askstring("Player Name", "Enter your name:", parent=master)
@@ -276,19 +286,18 @@ class HangmanGUI:
         else:
             self.player_name = player_name
 
-        self.points = 0
-        self.chosen_word = list(random.choice(word_list))
-        self.blank_list = ["_"] * len(self.chosen_word)
-        self.update_display = 0
-        self.guessed_letters = set()
+        self.points = points
+        self.made_mistake = False
 
-        self.seconds = 0
-        self.timer_running = True 
+        # Use the passed-in word list, or fall back to normal_word_list
+        self.word_list = word_list if word_list is not None else normal_word_list
+
+        # Set up the main window
+        self.timer_running = True
         self.timer_label = tk.Label(master, text="Time: 0s", font=("Arial", 10))
         self.timer_label.place(relx=1.0, y=0, anchor="ne")
-        self.update_timer()
-        
-        self.label = tk.Label(master, text=" ".join(self.blank_list), font=("Arial", 24))
+
+        self.label = tk.Label(master, font=("Arial", 24))
         self.label.pack()
 
         self.entry = tk.Entry(master)
@@ -297,9 +306,9 @@ class HangmanGUI:
         self.guess_button = tk.Button(master, text="Guess", command=self.make_guess)
         self.guess_button.pack()
 
-        self.hangman_label = tk.Label(master, text=HANGMANPICTURES[self.update_display], font=("Courier", 16), justify="left")
+        self.hangman_label = tk.Label(master, font=("Courier", 16), justify="left")
         self.hangman_label.pack()
-        self.entry.bind("<Return>", lambda event: self.make_guess())  
+        self.entry.bind("<Return>", lambda event: self.make_guess())
 
         self.letter_bank_label = tk.Label(master, text="Guessed Letters: ")
         self.letter_bank_label.pack()
@@ -316,21 +325,58 @@ class HangmanGUI:
         self.reset_button = tk.Button(self.button_frame, text="Play Again", command=self.reset_game)
         self.reset_button.pack(side="left", padx=5)
 
-        self.menu_button = tk.Button(self.button_frame, text="Back to Menu", command=self.back_to_menu)
-        self.menu_button.pack(side="left", padx=5)
+        self.finish_button = tk.Button(self.button_frame, text="Finish Game", command=self.show_game_over)
+        self.finish_button.pack(side="left", padx=5)
 
-        # Bind F1 to reveal the word
         self.master.bind("<F1>", lambda event: self.reveal_word())
 
+        self.next_word()
+        self.update_timer()
+
+    def next_word(self):
+        self.chosen_word = list(random.choice(self.word_list))
+        self.blank_list = ["_"] * len(self.chosen_word)
+        self.update_display = 0
+        self.guessed_letters = set()
+        self.seconds = 0
+        self.made_mistake = False
+        self.timer_running = True
+
+        self.label.config(text=" ".join(self.blank_list))
+        self.hangman_label.config(text=HANGMANPICTURES[self.update_display])
+        self.letter_bank_label.config(text="Guessed Letters: ")
+        self.message.config(text="")
+        self.entry.delete(0, tk.END)
+        self.entry.config(state="normal")
+        self.guess_button.config(state="normal")
+        self.points_label.config(text=f"Points: {self.points}")
+
+    # Function to reveal the word when F1 is pressed
     def reveal_word(self):
         self.label.config(text=" ".join(self.chosen_word))
         self.message.config(text=f"Cheat activated! The word is: {''.join(self.chosen_word)}")
 
-    def back_to_menu(self):
+    # Function to show the game over screen with final score and options to play again or return to menu
+    def show_game_over(self):
         for widget in self.master.winfo_children():
             widget.destroy()
-        StartScreen(self.master, lambda mode: HangmanGUI(self.master))
+        end_label = tk.Label(self.master, text="🏆 Game Over! 🏆", font=("Arial", 24, "bold"))
+        end_label.pack(pady=(40, 10))
+        score_label = tk.Label(self.master, text=f"Your Final Score: {self.points}", font=("Arial", 18))
+        score_label.pack(pady=(0, 30))
+        self.save_score()
+        menu_btn = tk.Button(
+            self.master,
+            text="Return to Menu",
+            font=("Arial", 14),
+            bg="#1976d2",
+            fg="white",
+            command=self.back_to_menu
+        )
+        menu_btn.pack(pady=10)
 
+    
+    # Function to save the score to the leaderboard
     def save_score(self):
         scores = []
         if os.path.exists(LEADERBOARD_FILE):
@@ -345,6 +391,13 @@ class HangmanGUI:
             for name, score in scores:
                 f.write(f"{name}:{score}\n")
 
+    # Function to reset the game, clearing all widgets and starting a new game
+    def reset_game(self):
+        for widget in self.master.winfo_children():
+            widget.destroy()
+        HangmanGUI(self.master, self.player_name, self.points, word_list=self.word_list)
+    
+    # Function to make a guess, and rule to not guess special characters or numbers or same letter
     def make_guess(self):
         guess = self.entry.get().lower()
         self.entry.delete(0, tk.END)
@@ -363,20 +416,24 @@ class HangmanGUI:
             self.label.config(text=" ".join(self.blank_list))
             self.message.config(text="WINNER WINNER CHICKEN DINNER!")
             self.timer_running = False
-            self.points += 10
-           
-            # Award time bonus AFTER guessing
+            self.points += 10  # Completing the word
+
+            # Perfect bonus
+            if not self.made_mistake:
+                self.points += 25
+
+            # Time bonus
             if self.seconds < 30:
                 self.points += 25
             elif self.seconds < 60:
                 self.points += 10
             else:
                 self.points += 5
-            
+
+            # Disable the guess and entry buttons
             self.points_label.config(text=f"Points: {self.points}")
             self.entry.config(state="disabled")
             self.guess_button.config(state="disabled")
-            self.save_score()
             return
 
         # Single letter guess
@@ -389,6 +446,7 @@ class HangmanGUI:
                 text="You Have Guessed...: " + " ".join(sorted(self.guessed_letters))
             )
 
+        # Check if the guess is correct
         correct = False
         for i, letter in enumerate(self.chosen_word):
             if guess == letter:
@@ -396,13 +454,16 @@ class HangmanGUI:
                     self.points += 5
                 self.blank_list[i] = guess
                 correct = True
-        
+
+        # If the guess was incorrect
         if not correct and len(guess) == 1:
             self.points -= 3
+            self.made_mistake = True  # Mark that a mistake was made
             self.message.config(text=f"'{guess}' is not in the word!")
             if self.update_display < len(HANGMANPICTURES) - 1:
                 self.update_display += 1
 
+        # Update the display
         self.points_label.config(text=f"Points: {self.points}")
         self.label.config(text=" ".join(self.blank_list))
         self.hangman_label.config(text=HANGMANPICTURES[self.update_display])
@@ -411,37 +472,35 @@ class HangmanGUI:
         if self.blank_list == self.chosen_word:
             self.message.config(text="WINNER WINNER CHICKEN DINNER!")
             self.timer_running = False
-            self.points += 10
-            
-            # Award time bonus AFTER guessing
+            self.points += 10  # Completing the word
+
+            # Perfect bonus
+            if not self.made_mistake:
+                self.points += 25
+
+            # Time bonus
             if self.seconds < 30:
                 self.points += 25
             elif self.seconds < 60:
                 self.points += 10
             else:
                 self.points += 5
-            
+
             self.points_label.config(text=f"Points: {self.points}")
             self.entry.config(state="disabled")
             self.guess_button.config(state="disabled")
-            self.save_score()
+        # Check for loss
         elif self.update_display == len(HANGMANPICTURES) - 1:
             self.message.config(text="YOU LOSE :(  The Word Was: " + "".join(self.chosen_word))
             self.timer_running = False  
             self.entry.config(state="disabled")
             self.guess_button.config(state="disabled")
-            self.save_score()
+            
 
-    def reset_game(self):
-        for widget in self.master.winfo_children():
-            widget.destroy()
-        HangmanGUI(self.master, self.player_name)
-
+    # Updates timer after every second
     def update_timer(self):
-        
         if not hasattr(self, 'timer_running') or not self.timer_label.winfo_exists():
             return  
-        
         minutes = self.seconds // 60
         seconds = self.seconds % 60
         self.timer_label.config(text=f"Time: {minutes}:{seconds:02d}")
@@ -456,7 +515,13 @@ class HangmanGUI:
 
         if self.timer_running:
             self.seconds += 1
-        self.master.after(1000, self.update_timer)
+            self.master.after(1000, self.update_timer)
+    
+    def back_to_menu(self):
+        for widget in self.master.winfo_children():
+            widget.destroy()
+        # Use the same callback as your StartScreen and main block
+        StartScreen(self.master, launch_game)
 
 # -------------------- Blitz Mode --------------------
 class BlitzMode:
@@ -465,15 +530,26 @@ class BlitzMode:
         self.return_to_menu_callback = return_to_menu_callback
         self.score = 0
         self.time_left = 180  # 3 minutes in seconds
-        self.word_list = word_list[:]
-        random.shuffle(self.word_list)
+        self.normal_word_list = normal_word_list[:]
+        random.shuffle(self.normal_word_list)
         self.current_word = ""
         self.guessed_letters = set()
         self.blank_list = []
         self.update_display = 0
         self.wrong_guesses = 0
         self.game_over = False
+        self.button_frame = tk.Frame(master)
+        self.button_frame.pack(pady=10)
 
+        # Finish Game button
+        self.finish_button = tk.Button(self.button_frame, text="Finish Game", command=self.show_game_over)
+        self.finish_button.pack(side="left", padx=5)
+
+        # Updates word and timer
+        self.next_word()
+        self.update_timer()
+
+        # Enter player name prompt
         if player_name is None:
             self.player_name = simpledialog.askstring("Player Name", "Enter your name:", parent=master)
             if not self.player_name:
@@ -481,37 +557,59 @@ class BlitzMode:
         else:
             self.player_name = player_name
 
-        for widget in self.master.winfo_children():
-            widget.destroy()
-
+        # Title label
         self.timer_label = tk.Label(master, text="Time: 03:00", font=("Arial", 16, "bold"))
         self.timer_label.pack(pady=(10, 0))
 
+        # Label for the score
         self.score_label = tk.Label(master, text="Score: 0", font=("Arial", 12))
         self.score_label.pack()
 
+        # Label for the word to guess
         self.label = tk.Label(master, text="", font=("Arial", 24))
         self.label.pack(pady=10)
 
+        # ability to press Enter to submit guess
         self.entry = tk.Entry(master)
         self.entry.pack()
         self.entry.bind("<Return>", lambda event: self.make_guess())
 
+        # Guess button
         self.guess_button = tk.Button(master, text="Guess", command=self.make_guess)
         self.guess_button.pack(pady=5)
 
+        # Label for the hangman drawing
         self.hangman_label = tk.Label(master, text="", font=("Courier", 16), justify="left")
         self.hangman_label.pack()
 
+        # Guessed letters label
         self.letter_bank_label = tk.Label(master, text="Guessed Letters: ")
         self.letter_bank_label.pack()
 
         self.message = tk.Label(master, text="")
         self.message.pack()
 
+        # Resets the word and timer
         self.next_word()
         self.update_timer()
 
+    # Game over screen that shows final score and options to play again or return to menu
+    def show_game_over(self):
+        self.game_over = True
+        self.entry.config(state="disabled")
+        self.guess_button.config(state="disabled")
+        self.save_score()
+        for widget in self.master.winfo_children():
+            widget.destroy()
+        end_label = tk.Label(self.master, text="⏰ Game Over! ⏰", font=("Arial", 24, "bold"))
+        end_label.pack(pady=(40, 10))
+        score_label = tk.Label(self.master, text=f"Your Final Score: {self.score}", font=("Arial", 18))
+        score_label.pack(pady=(0, 30))
+        menu_btn = tk.Button(self.master, text="Return to Menu", font=("Arial", 14), bg="#1976d2", fg="white",
+                             command=self.back_to_menu)
+        menu_btn.pack(pady=10)
+    
+    # Function to save the score to the leaderboard
     def save_score(self):
         scores = []
         if os.path.exists(LEADERBOARD_FILE_BLITZ):
@@ -526,10 +624,11 @@ class BlitzMode:
             for name, score in scores:
                 f.write(f"{name}:{score}\n")
 
+    # Function to start the next word
     def next_word(self):
         if self.game_over:
             return
-        self.current_word = list(random.choice(self.word_list))
+        self.current_word = list(random.choice(self.normal_word_list))
         self.blank_list = ["_"] * len(self.current_word)
         self.guessed_letters = set()
         self.update_display = 0
@@ -542,6 +641,7 @@ class BlitzMode:
         self.entry.config(state="normal")
         self.guess_button.config(state="normal")
 
+    # Function to update the timer
     def update_timer(self):
         minutes = self.time_left // 60
         seconds = self.time_left % 60
@@ -552,6 +652,7 @@ class BlitzMode:
         else:
             self.end_game()
 
+    # Function to make a guess
     def make_guess(self):
         if self.game_over:
             return
@@ -564,6 +665,7 @@ class BlitzMode:
             self.message.config(text="Only letters are allowed! No numbers or special characters.")
             return
 
+        # Full word guess
         if guess == "".join(self.current_word):
             self.score += 10 + 5 * self.blank_list.count("_")
             self.score_label.config(text=f"Score: {self.score}")
@@ -573,6 +675,7 @@ class BlitzMode:
             self.master.after(1000, self.next_word)
             return
 
+        # Single letter guess
         if len(guess) == 1:
             if guess in self.guessed_letters:
                 self.message.config(text=f"You already guessed '{guess}'")
@@ -582,6 +685,7 @@ class BlitzMode:
                 text="Guessed Letters: " + " ".join(sorted(self.guessed_letters))
             )
 
+        # Check if the guess is correct
         correct = False
         for i, letter in enumerate(self.current_word):
             if guess == letter:
@@ -591,6 +695,7 @@ class BlitzMode:
                 correct = True
         self.score_label.config(text=f"Score: {self.score}")
 
+        # If the guess was incorrect
         if not correct and len(guess) == 1:
             self.update_display += 1
             self.hangman_label.config(text=HANGMANPICTURES[self.update_display])
@@ -601,9 +706,11 @@ class BlitzMode:
                 self.master.after(1500, self.next_word)
                 return
 
+        # Update the display
         self.label.config(text=" ".join(self.blank_list))
         self.hangman_label.config(text=HANGMANPICTURES[self.update_display])
 
+        # Check if the player has guessed the word
         if self.blank_list == self.current_word:
             self.score += 10
             self.score_label.config(text=f"Score: {self.score}")
@@ -612,6 +719,7 @@ class BlitzMode:
             self.guess_button.config(state="disabled")
             self.master.after(1000, self.next_word)
 
+    # End screen that shows final score and options to play again or return to menu
     def end_game(self):
         self.game_over = True
         self.entry.config(state="disabled")
@@ -632,11 +740,13 @@ class BlitzMode:
                              command=self.back_to_menu)
         menu_btn.pack(pady=10)
 
+    # Restarts the game
     def restart(self):
         for widget in self.master.winfo_children():
             widget.destroy()
         BlitzMode(self.master, self.return_to_menu_callback, self.player_name)
 
+    # Back to menu function
     def back_to_menu(self):
         for widget in self.master.winfo_children():
             widget.destroy()
@@ -648,39 +758,43 @@ class OneLifeMode:
         self.master = master
         self.return_to_menu_callback = return_to_menu_callback
         self.score = 0
-        self.word_list = word_list[:]
-        random.shuffle(self.word_list)
+        self.normal_word_list = normal_word_list[:]
+        random.shuffle(self.normal_word_list)
         self.current_word = ""
         self.guessed_letters = set()
         self.blank_list = []
         self.update_display = 0
 
+        # Enter player name prompt
         if player_name is None:
             self.player_name = simpledialog.askstring("Player Name", "Enter your name:", parent=master)
             if not self.player_name:
                 self.player_name = "Player"
         else:
             self.player_name = player_name
-
-        for widget in self.master.winfo_children():
-            widget.destroy()
-
+        
+        # Timer label
         self.score_label = tk.Label(master, text="Score: 0", font=("Arial", 12))
         self.score_label.pack()
 
+        # Label for the word to guess
         self.label = tk.Label(master, text="", font=("Arial", 24))
         self.label.pack(pady=10)
 
+        # Entry for guesses
         self.entry = tk.Entry(master)
         self.entry.pack()
         self.entry.bind("<Return>", lambda event: self.make_guess())
 
+        # Guess button
         self.guess_button = tk.Button(master, text="Guess", command=self.make_guess)
         self.guess_button.pack(pady=5)
 
+        # Hangman label
         self.hangman_label = tk.Label(master, text="", font=("Courier", 16), justify="left")
         self.hangman_label.pack()
 
+        # Guessed letters label
         self.letter_bank_label = tk.Label(master, text="Guessed Letters: ")
         self.letter_bank_label.pack()
 
@@ -689,6 +803,33 @@ class OneLifeMode:
 
         self.next_word()
 
+        # Button frame for additional actions
+        self.button_frame = tk.Frame(master)
+        self.button_frame.pack(pady=10)
+
+        # Button to finish the game
+        self.finish_button = tk.Button(self.button_frame, text="Finish Game", command=self.show_game_over)
+        self.finish_button.pack(side="left", padx=5)
+
+        
+        self.next_word()
+
+    # Returns to the main menu
+    def show_game_over(self):
+        self.entry.config(state="disabled")
+        self.guess_button.config(state="disabled")
+        self.save_score()
+        for widget in self.master.winfo_children():
+            widget.destroy()
+        end_label = tk.Label(self.master, text="💀 Game Over! 💀", font=("Arial", 24, "bold"))
+        end_label.pack(pady=(40, 10))
+        score_label = tk.Label(self.master, text=f"Your Final Score: {self.score}", font=("Arial", 18))
+        score_label.pack(pady=(0, 30))
+        menu_btn = tk.Button(self.master, text="Return to Menu", font=("Arial", 14), bg="#1976d2", fg="white",
+                             command=self.back_to_menu)
+        menu_btn.pack(pady=10)
+    
+    # Saves the score to the leaderboard file
     def save_score(self):
         scores = []
         if os.path.exists(LEADERBOARD_FILE_ONELIFE):
@@ -703,8 +844,9 @@ class OneLifeMode:
             for name, score in scores:
                 f.write(f"{name}:{score}\n")
 
+    # Starts a new word
     def next_word(self):
-        self.current_word = list(random.choice(self.word_list))
+        self.current_word = list(random.choice(self.normal_word_list))
         self.blank_list = ["_"] * len(self.current_word)
         self.guessed_letters = set()
         self.update_display = 0
@@ -716,6 +858,7 @@ class OneLifeMode:
         self.entry.config(state="normal")
         self.guess_button.config(state="normal")
 
+    # Makes a guess
     def make_guess(self):
         guess = self.entry.get().lower()
         self.entry.delete(0, tk.END)
@@ -726,6 +869,7 @@ class OneLifeMode:
             self.message.config(text="Only letters are allowed! No numbers or special characters.")
             return
 
+        # Full word guess
         if guess == "".join(self.current_word):
             self.score += 10 + 5 * self.blank_list.count("_")
             self.score_label.config(text=f"Score: {self.score}")
@@ -735,6 +879,7 @@ class OneLifeMode:
             self.master.after(1000, self.next_word)
             return
 
+        # Single letter guess
         if len(guess) == 1:
             if guess in self.guessed_letters:
                 self.message.config(text=f"You already guessed '{guess}'")
@@ -744,12 +889,14 @@ class OneLifeMode:
                 text="Guessed Letters: " + " ".join(sorted(self.guessed_letters))
             )
 
+        # Check if the guess is correct
         correct = False
         for i, letter in enumerate(self.current_word):
             if guess == letter:
                 self.blank_list[i] = guess
                 correct = True
 
+        # checks if word was wrong & reveals answer
         if not correct and len(guess) == 1:
             self.update_display += 1
             self.hangman_label.config(text=HANGMANPICTURES[self.update_display])
@@ -761,9 +908,11 @@ class OneLifeMode:
                 self.master.after(1500, self.end_game)
                 return
 
+        # Update the score and display
         self.label.config(text=" ".join(self.blank_list))
         self.hangman_label.config(text=HANGMANPICTURES[self.update_display])
 
+        # Check for win
         if self.blank_list == self.current_word:
             self.score += 10
             self.score_label.config(text=f"Score: {self.score}")
@@ -772,6 +921,7 @@ class OneLifeMode:
             self.guess_button.config(state="disabled")
             self.master.after(1000, self.next_word)
 
+    # End Screem
     def end_game(self):
         for widget in self.master.winfo_children():
             widget.destroy()
@@ -788,17 +938,102 @@ class OneLifeMode:
                              command=self.back_to_menu)
         menu_btn.pack(pady=10)
 
+    # Restarts game
     def restart(self):
         for widget in self.master.winfo_children():
             widget.destroy()
         OneLifeMode(self.master, self.return_to_menu_callback, self.player_name)
 
+    # Back to menu code
     def back_to_menu(self):
         for widget in self.master.winfo_children():
             widget.destroy()
         self.return_to_menu_callback()
 
-# -------------------- Main block --------------------
+class ChallengeModeScreen:
+    def __init__(self, master, start_callback):
+        self.master = master
+        for widget in master.winfo_children():
+            widget.destroy()
+        self.frame = tk.Frame(master, bg="#f0f0f0")
+        self.frame.pack(fill="both", expand=True)
+
+        title = tk.Label(self.frame, text="Choose Your Challenge!", font=("Arial", 28, "bold"), bg="#f0f0f0")
+        title.pack(pady=(40, 20))
+
+        # Brainrot Mode
+        brainrot_label = tk.Label(self.frame, text="Brainrot Mode Word File:", font=("Arial", 14), bg="#f0f0f0")
+        brainrot_label.pack(pady=(10, 0))
+        self.brainrot_entry = tk.Entry(self.frame, width=40)
+        self.brainrot_entry.pack()
+        self.brainrot_entry.insert(0, "brainrot_words.txt")  # Default file
+
+        brainrot_btn = tk.Button(self.frame, text="Start Brainrot Mode", font=("Arial", 16, "bold"),
+                                 bg="#ffb300", fg="black",
+                                 command=self.start_brainrot)
+        brainrot_btn.pack(pady=(10, 20))
+
+        # Medical Mode
+        medical_label = tk.Label(self.frame, text="Medical Mode Word File:", font=("Arial", 14), bg="#f0f0f0")
+        medical_label.pack(pady=(10, 0))
+        self.medical_entry = tk.Entry(self.frame, width=40)
+        self.medical_entry.pack()
+        self.medical_entry.insert(0, "medical_words.txt")  # Default file
+
+        medical_btn = tk.Button(self.frame, text="Start Medical Mode", font=("Arial", 16, "bold"),
+                                bg="#1976d2", fg="white",
+                                command=self.start_medical)
+        medical_btn.pack(pady=(10, 20))
+
+        back_btn = tk.Button(
+            self.frame,
+            text="Back",
+            font=("Arial", 12),
+            command=self.go_back_to_menu
+        )
+        back_btn.pack(pady=(30, 10))
+
+        self.start_callback = start_callback
+
+    def go_back_to_menu(self):
+        self.frame.destroy()
+        StartScreen(self.master, self.start_callback)
+
+    def start_brainrot(self):
+        word_file = self.brainrot_entry.get().strip()
+        if not os.path.isabs(word_file):
+            word_file = os.path.join(BASE_DIR, word_file)
+        if not os.path.exists(word_file):
+            messagebox.showerror("File Not Found", f"Could not find file: {word_file}")
+            return
+        words = load_words(word_file)
+        if not words:
+            messagebox.showerror("No Words", "No words found in the selected file.")
+            return
+        player_name = simpledialog.askstring("Player Name", "Enter your name:", parent=self.master)
+        if player_name is None or player_name.strip() == "":
+            player_name = "Player"
+        self.frame.destroy()
+        HangmanGUI(self.master, player_name=player_name, word_list=words)
+
+    def start_medical(self):
+        word_file = self.medical_entry.get().strip()
+        if not os.path.isabs(word_file):
+            word_file = os.path.join(BASE_DIR, word_file)
+        if not os.path.exists(word_file):
+            messagebox.showerror("File Not Found", f"Could not find file: {word_file}")
+            return
+        words = load_words(word_file)
+        if not words:
+            messagebox.showerror("No Words", "No words found in the selected file.")
+            return
+        player_name = simpledialog.askstring("Player Name", "Enter your name:", parent=self.master)
+        if player_name is None or player_name.strip() == "":
+            player_name = "Player"
+        self.frame.destroy()
+        HangmanGUI(self.master, player_name=player_name, word_list=words)
+
+# -------------------- Main block -------------------- #
 if __name__ == "__main__":
     root = tk.Tk()
     root.attributes("-fullscreen", True)
@@ -809,6 +1044,7 @@ if __name__ == "__main__":
             root.destroy()
     root.bind("<Escape>", handle_escape)
 
+    # Function to launch the different modes
     def launch_game(mode="main"):
         for widget in root.winfo_children():
             widget.destroy()
@@ -816,8 +1052,15 @@ if __name__ == "__main__":
             BlitzMode(root, lambda: StartScreen(root, launch_game))
         elif mode == "one_life":
             OneLifeMode(root, lambda: StartScreen(root, launch_game))
+        elif mode == "challenge":
+            ChallengeModeScreen(root, launch_game)
+        elif mode == "medical":
+            medical_words_path = os.path.join(BASE_DIR, "medical_words.txt")
+            HangmanGUI(root, word_list=load_words(medical_words_path))
         else:
             HangmanGUI(root)
 
+    # Creates the start screen
     StartScreen(root, launch_game)
     root.mainloop()
+
